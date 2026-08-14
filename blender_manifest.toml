@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+
+id = "kabja_phone_cam"
+version = "0.1.2"
+name = "Kabja Phone Cam"
+tagline = "Control the active Blender camera from a phone browser"
+maintainer = "mdnadeemm"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Receive camera control data from phone browser"
