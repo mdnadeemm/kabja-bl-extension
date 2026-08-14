@@ -20,6 +20,6 @@ Blender extension that lets a phone browser control the active scene camera over
 
 The phone page sends device orientation, gyro/accelerometer data, or touch-look input plus simple movement buttons. Blender applies the latest input to the scene camera. In gyro/accelerometer mode, gyroscope rotation drives the camera and accelerometer gravity stabilizes pitch and roll.
 
-The phone page shows live sensor values. After tapping `Enable Gyro + Accelerometer`, `Sensor Events` should increase and the gyro/accel numbers should change as you move the phone. Blender also shows the latest gyro and accelerometer values in the `Phone Cam` panel.
+The phone page shows live sensor values and diagnostics. After tapping `Enable Gyro + Accelerometer`, `Sensor Events` should increase and the gyro/accel numbers should change as you move the phone. `Secure Context` must usually be `yes`; if it is `no`, most phone browsers block gyro and accelerometer data on local HTTP pages. Blender also shows the latest gyro and accelerometer values in the `Phone Cam` panel.
 
 If the phone cannot connect, check that Blender is allowed through the firewall and that both devices are on the same network. Some mobile browsers require HTTPS for motion sensors, so the touch-look pad is included as a fallback.

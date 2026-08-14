@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Kabja Phone Cam",
     "author": "mdnadeemm",
-    "version": (0, 1, 2),
+    "version": (0, 1, 3),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Phone Cam",
     "description": "Control the active scene camera from a phone browser",
@@ -66,6 +66,13 @@ PHONE_PAGE = r"""<!doctype html>
       <h2>Live Sensor Data</h2>
       <div class="readout">
         <span>Sensor Events</span><span id="motionCount">0</span>
+        <span>Orientation Events</span><span id="orientationCount">0</span>
+        <span>Secure Context</span><span id="secureContext">checking</span>
+        <span>DeviceMotion API</span><span id="motionApi">checking</span>
+        <span>DeviceOrientation API</span><span id="orientationApi">checking</span>
+        <span>Orientation alpha</span><span id="orientAlpha">0.00</span>
+        <span>Orientation beta</span><span id="orientBeta">0.00</span>
+        <span>Orientation gamma</span><span id="orientGamma">0.00</span>
         <span>Gyro alpha/yaw</span><span id="gyroYaw">0.00</span>
         <span>Gyro beta/pitch</span><span id="gyroPitch">0.00</span>
         <span>Gyro gamma/roll</span><span id="gyroRoll">0.00</span>
@@ -95,6 +102,13 @@ PHONE_PAGE = r"""<!doctype html>
     const statusEl = document.getElementById("status");
     const readouts = {
       motionCount: document.getElementById("motionCount"),
+      orientationCount: document.getElementById("orientationCount"),
+      secureContext: document.getElementById("secureContext"),
+      motionApi: document.getElementById("motionApi"),
+      orientationApi: document.getElementById("orientationApi"),
+      orientAlpha: document.getElementById("orientAlpha"),
+      orientBeta: document.getElementById("orientBeta"),
+      orientGamma: document.getElementById("orientGamma"),
       gyroYaw: document.getElementById("gyroYaw"),
       gyroPitch: document.getElementById("gyroPitch"),
       gyroRoll: document.getElementById("gyroRoll"),
@@ -104,11 +118,29 @@ PHONE_PAGE = r"""<!doctype html>
     };
     let sent = 0;
     let motionEvents = 0;
+    let orientationEvents = 0;
     let motionEnabled = false;
     let dragging = false;
     let lastX = 0;
     let lastY = 0;
     let lastMotionTime = 0;
+    let sensorStatus = "Waiting for input...";
+
+    function sensorApiState(api) {
+      if (typeof api === "undefined") return "missing";
+      if (typeof api.requestPermission === "function") return "permission required";
+      return "available";
+    }
+
+    function refreshDiagnostics() {
+      readouts.secureContext.textContent = window.isSecureContext ? "yes" : "no";
+      readouts.motionApi.textContent = sensorApiState(window.DeviceMotionEvent);
+      readouts.orientationApi.textContent = sensorApiState(window.DeviceOrientationEvent);
+      if (!window.isSecureContext && location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+        sensorStatus = "Sensors blocked: phone browsers usually require HTTPS for gyro/accelerometer.";
+      }
+      statusEl.textContent = sensorStatus;
+    }
 
     function postState() {
       fetch("/input", {
@@ -117,7 +149,7 @@ PHONE_PAGE = r"""<!doctype html>
         body: JSON.stringify(state),
       }).then(() => {
         sent++;
-        statusEl.textContent = `Connected · ${sent} packets`;
+        statusEl.textContent = `${sensorStatus} · connected ${sent}`;
       }).catch(() => {
         statusEl.textContent = "Cannot reach Blender server";
       });
@@ -125,9 +157,14 @@ PHONE_PAGE = r"""<!doctype html>
     }
 
     function onOrientation(event) {
+      orientationEvents++;
       state.alpha = event.alpha || 0;
       state.beta = event.beta || 0;
       state.gamma = event.gamma || 0;
+      readouts.orientationCount.textContent = orientationEvents;
+      readouts.orientAlpha.textContent = state.alpha.toFixed(2);
+      readouts.orientBeta.textContent = state.beta.toFixed(2);
+      readouts.orientGamma.textContent = state.gamma.toFixed(2);
     }
 
     function onDeviceMotion(event) {
@@ -153,6 +190,7 @@ PHONE_PAGE = r"""<!doctype html>
       readouts.accelX.textContent = state.accelX.toFixed(2);
       readouts.accelY.textContent = state.accelY.toFixed(2);
       readouts.accelZ.textContent = state.accelZ.toFixed(2);
+      sensorStatus = "Gyro + accelerometer receiving data";
     }
 
     document.getElementById("motion").addEventListener("click", async () => {
@@ -160,14 +198,21 @@ PHONE_PAGE = r"""<!doctype html>
           typeof DeviceOrientationEvent.requestPermission === "function") {
         const permission = await DeviceOrientationEvent.requestPermission();
         if (permission !== "granted") {
-          statusEl.textContent = "Motion permission denied";
+          sensorStatus = "Motion permission denied";
+          statusEl.textContent = sensorStatus;
           return;
         }
+      }
+      if (typeof DeviceOrientationEvent === "undefined") {
+        sensorStatus = "DeviceOrientation is not available in this browser";
+        statusEl.textContent = sensorStatus;
+        return;
       }
       window.addEventListener("deviceorientation", onOrientation, true);
       motionEnabled = true;
       state.gyroAccel = false;
-      statusEl.textContent = "Motion enabled";
+      sensorStatus = "Motion enabled; waiting for orientation events";
+      statusEl.textContent = sensorStatus;
     });
 
     document.getElementById("gyroAccel").addEventListener("click", async () => {
@@ -175,18 +220,27 @@ PHONE_PAGE = r"""<!doctype html>
           typeof DeviceMotionEvent.requestPermission === "function") {
         const permission = await DeviceMotionEvent.requestPermission();
         if (permission !== "granted") {
-          statusEl.textContent = "Gyro/accelerometer permission denied";
+          sensorStatus = "Gyro/accelerometer permission denied";
+          statusEl.textContent = sensorStatus;
           return;
         }
       }
       if (typeof DeviceMotionEvent === "undefined") {
-        statusEl.textContent = "DeviceMotion is not available in this browser";
+        sensorStatus = "DeviceMotion is not available in this browser";
+        statusEl.textContent = sensorStatus;
         return;
       }
       window.addEventListener("devicemotion", onDeviceMotion, true);
       state.gyroAccel = true;
       motionEnabled = true;
-      statusEl.textContent = "Gyro + accelerometer enabled";
+      sensorStatus = "Gyro + accelerometer enabled; waiting for sensor events";
+      statusEl.textContent = sensorStatus;
+      setTimeout(() => {
+        if (state.gyroAccel && motionEvents === 0) {
+          sensorStatus = "No devicemotion events. Use HTTPS or a browser that allows motion sensors.";
+          statusEl.textContent = sensorStatus;
+        }
+      }, 1500);
     });
 
     document.getElementById("zero").addEventListener("click", () => {
@@ -234,6 +288,7 @@ PHONE_PAGE = r"""<!doctype html>
     lookpad.addEventListener("pointercancel", () => { dragging = false; });
 
     setInterval(postState, 33);
+    refreshDiagnostics();
   </script>
 </body>
 </html>
